@@ -2,6 +2,7 @@
 
 const utils = require("@iobroker/adapter-core");
 const axios = require("axios").default;
+
 let url = "";
 let updateDataInterval;
 let timeout1Scan;
@@ -110,7 +111,7 @@ class OekofenJson extends utils.Adapter {
 	async initialScan(url) {
 		this.log.debug("[initialScan] called with url: " + url + " and encoding: latin1");
 		try {
-			const response = await axios.get(url + "/all??", { responseEncoding: "latin1" });
+			const response = await axios.get(url + "/all?", { responseEncoding: "latin1" });
 			if (response.status === 200) {
 				this.log.debug("[initialScan_axios.get] got HTTP/200 response, call parseDataOnStartupAndCreateObjects with response.data");
 				await this.parseDataOnStartupAndCreateObjects(response.data);
@@ -197,7 +198,10 @@ class OekofenJson extends utils.Adapter {
 						const input = jsonData[key][innerKey].format;
 						const firstDelimiter = "|";
 						const secondDelimiter = ":";
-						const cleanInput = input.replace(/#./g, "|");
+						const cleanInput = input.replace(/#./g, "|")
+		                                                        .replace(/St\?rung/g,'Störung')
+		                                                        .replace(/Z\?ndung/g,'Zündung')
+		                                                        .replace(/\?kologisch/g,'Ökologisch');
 						const output = cleanInput.split(firstDelimiter).reduce( (/** @type {{ [x: string]: any; }} */ newArr, /** @type {string} */ element, /** @type {string | number} */ i) => {
 							const subArr = element.split(secondDelimiter);
 							newArr[i] = subArr;
@@ -296,7 +300,6 @@ class OekofenJson extends utils.Adapter {
 
 			Object.keys(jsonData[key]).forEach(innerKey => {
 				try {
-
 					//get the object from ioBroker and find out if there's a factor which needs to be applied
 					this.getObject(key + "." + innerKey, function(err, obj) {
 						let tNewVal;
@@ -305,7 +308,13 @@ class OekofenJson extends utils.Adapter {
 						if (obj.common.type === "number") {
 							tNewVal = Number(jsonData[key][innerKey]);
 						} else if (obj.common.type === "string") {
-							tNewVal = String(jsonData[key][innerKey]);
+							tNewVal = String(jsonData[key][innerKey])
+		                                                         .replace(/Sch\?nwetterprognose/g,'Schönwetterprognose')
+		                                                         .replace(/\?kologisch/g,'Ökologisch')
+		                                                         .replace(/u\?e/g,'uße')
+		                                                         .replace( /\ber/g,' über')
+		                                                         .replace(/St\?rung/g,'Störung')
+		                                                         .replace(/Z\?ndung/g,'Zündung');
 						} else {
 							throw("Datapoint (" + key + "." + innerKey + ") is without type. Data won't get updatet!");
 						}
