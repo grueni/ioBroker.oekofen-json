@@ -2,10 +2,12 @@
 
 const utils = require("@iobroker/adapter-core");
 const axios = require("axios").default;
+const { repairText } = require("./lib/tools.js");
 
 let url = "";
 let updateDataInterval;
 let timeout1Scan;
+let language= "";
 
 class OekofenJson extends utils.Adapter {
 
@@ -198,10 +200,8 @@ class OekofenJson extends utils.Adapter {
 						const input = jsonData[key][innerKey].format;
 						const firstDelimiter = "|";
 						const secondDelimiter = ":";
-						const cleanInput = input.replace(/#./g, "|")
-		                                                        .replace(/St\?rung/g,'Störung')
-		                                                        .replace(/Z\?ndung/g,'Zündung')
-		                                                        .replace(/\?kologisch/g,'Ökologisch');
+						
+						const cleanInput = String(repairText(input.replace(/#./g, "|")));
 						const output = cleanInput.split(firstDelimiter).reduce( (/** @type {{ [x: string]: any; }} */ newArr, /** @type {string} */ element, /** @type {string | number} */ i) => {
 							const subArr = element.split(secondDelimiter);
 							newArr[i] = subArr;
@@ -296,25 +296,25 @@ class OekofenJson extends utils.Adapter {
 	async parseDataAndSetValues(jsonData, instanceObject) {
 		Object.keys(jsonData).forEach(key => {
 			//if we reach those top-level-keys, just skip them; e.g. weather-forecast as we not even can manipulate something here
+                        //this.log.debug("key=" + key);
 			if (key === "forecast") {return;}
-
+                        
 			Object.keys(jsonData[key]).forEach(innerKey => {
 				try {
+                                        //this.log.debug("innerKey=" + innerKey);
+
 					//get the object from ioBroker and find out if there's a factor which needs to be applied
 					this.getObject(key + "." + innerKey, function(err, obj) {
 						let tNewVal;
+                                                
+						if (obj) {
+						//this.log.debug(util.inspect(obj, false, null, false));
 
 						// Find out which datatype the object in iobroker is and convert the value
 						if (obj.common.type === "number") {
 							tNewVal = Number(jsonData[key][innerKey]);
 						} else if (obj.common.type === "string") {
-							tNewVal = String(jsonData[key][innerKey])
-		                                                         .replace(/Sch\?nwetterprognose/g,'Schönwetterprognose')
-		                                                         .replace(/\?kologisch/g,'Ökologisch')
-		                                                         .replace(/u\?e/g,'uße')
-		                                                         .replace( /\ber/g,' über')
-		                                                         .replace(/St\?rung/g,'Störung')
-		                                                         .replace(/Z\?ndung/g,'Zündung');
+							tNewVal = repairText(String(jsonData[key][innerKey]));
 						} else {
 							throw("Datapoint (" + key + "." + innerKey + ") is without type. Data won't get updatet!");
 						}
@@ -323,6 +323,10 @@ class OekofenJson extends utils.Adapter {
 							instanceObject.setStateAsync(key + "." + innerKey, {val: tNewVal * obj.native.factor, ack: true});
 						} else {
 							instanceObject.setStateAsync(key + "." + innerKey, {val: tNewVal, ack: true});
+						}
+						} 
+						else {
+				                   //this.log.debug(" is false!  key=" + key + " innerKey=" + innerKey);
 						}
 					});
 
